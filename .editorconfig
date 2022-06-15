@@ -1,0 +1,10 @@
+root = true
+
+[*]
+indent_style = space
+
+[*.java]
+indent_size = 4
+
+[*.yml]
+indent_size = 2

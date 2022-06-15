@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-tls-acme-dev
+  labels:
+    app: ingress-tls-acme-dev
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: ingress-tls-acme-dev
+      labels:
+        app: ingress-tls-acme-dev
+    spec:
+      serviceAccountName: ingress-tls-acme-dev
+      containers:
+        - name: app
+          image: ingress-tls-acme-dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: LOGGING_LEVEL_APP
+              value: DEBUG
+          volumeMounts:
+            - mountPath: /application/config
+              name: configs
+      imagePullSecrets:
+        - name: ghcr-pull
+      volumes:
+        - name: configs
+          configMap:
+            # Must be created manually on the target cluster
+            # with an application.properties or application.yml entry
+            name: ingress-tls-acme-dev
+  selector:
+    matchLabels:
+      app: ingress-tls-acme-dev

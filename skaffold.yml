@@ -1,0 +1,27 @@
+# nonk8s
+apiVersion: skaffold/v2beta27
+kind: Config
+metadata:
+  name: ingress-tls-acme-dev
+build:
+  artifacts:
+  - image: ingress-tls-acme-dev
+    custom:
+      buildCommand: ./gradlew pushSimpleBootImage
+      dependencies:
+        paths:
+          - build.gradle
+          - src/main/java
+          - src/main/resources
+deploy:
+  kubectl:
+    manifests:
+    - k8s/*.yml
+profiles:
+- name: windows
+  build:
+    artifacts:
+      - image: ingress-tls-acme-dev
+        custom:
+          # override this since Windows needs backslash'y paths
+          buildCommand: .\gradlew pushSimpleBootImage
