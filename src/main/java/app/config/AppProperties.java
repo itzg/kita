@@ -11,7 +11,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
 
-@ConfigurationProperties("app")
+@ConfigurationProperties("kita")
 @Validated
 public record AppProperties(
     @NotEmpty

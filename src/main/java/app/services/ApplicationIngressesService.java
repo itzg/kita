@@ -74,7 +74,7 @@ public class ApplicationIngressesService implements Closeable {
             });
     }
 
-    @Scheduled(fixedDelayString = "#{@'app-app.config.AppProperties'.certRenewalCheckInterval}")
+    @Scheduled(fixedDelayString = "#{@'kita-app.config.AppProperties'.certRenewalCheckInterval}")
     public void checkCertRenewals() {
         final IngressList ingresses = k8s.network().v1().ingresses()
             .withLabel(Metadata.ISSUER_LABEL)

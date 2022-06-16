@@ -42,7 +42,6 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -51,8 +50,6 @@ import reactor.util.retry.Retry;
 @Service
 @Slf4j
 public class CertificateProcessingService {
-
-    public static final MediaType PEM_CERT_CHAIN = MediaType.parseMediaType("application/pem-certificate-chain");
 
     private final KubernetesClient k8s;
     private final AppProperties appProperties;
@@ -105,7 +102,7 @@ public class CertificateProcessingService {
                  */
                 return Flux.fromIterable(orderResponse.authorizations())
                     .flatMap(authzUri -> loadAuthorization(issuerId, authzUri)
-                        .flatMap(authz -> processAuthorization(issuerId, authzUri, authz, ingress, tls))
+                        .flatMap(authz -> processAuthorization(issuerId, authzUri, authz, ingress))
                     )
                     .then(
                         submitCsr(issuerId, identifiers, orderResponse.finalizeUri())
@@ -114,20 +111,23 @@ public class CertificateProcessingService {
                                     .map(certChain -> buildCertAndKey(certChain, csrResult.privateKey()))
                             )
                             .map(certAndKey -> storeSecret(issuerId, hosts, certAndKey.certChain(), certAndKey.privateKey(),
-                                secretName
+                                secretName, ingressName
                             ))
                     );
             });
 
     }
 
-    private Secret storeSecret(String issuerId, List<String> hosts, String certChain, String privateKey, String secretName) {
+    private Secret storeSecret(String issuerId, List<String> hosts, String certChain, String privateKey, String secretName,
+        String ingressName
+    ) {
         final Encoder b64Encoder = Base64.getEncoder();
         final Secret secret = new SecretBuilder()
             .withMetadata(new ObjectMetaBuilder()
                 .withName(secretName)
                 .withLabels(Map.of(
-                    Metadata.ISSUER_LABEL, issuerId
+                    Metadata.ISSUER_LABEL, issuerId,
+                    Metadata.FOR_INGRESS_LABEL, ingressName
                 ))
                 .withAnnotations(Map.of(
                     Metadata.HOST_ANNOTATION, String.join(",", hosts)
@@ -244,8 +244,7 @@ public class CertificateProcessingService {
         } catch (IOException e) {
             throw new RuntimeException("Failed to create SAN extension", e);
         }
-        final Extensions sanExtension = extensionsGenerator.generate();
-        return sanExtension;
+        return extensionsGenerator.generate();
     }
 
     private KeyPair generateCertKeyPair() {
@@ -263,8 +262,8 @@ public class CertificateProcessingService {
         return requestService.request(issuerId, authzUri, "", AuthzResponse.class);
     }
 
-    private Mono<AuthzResponse> processAuthorization(String issuerId, URI authzUri, AuthzResponse auth, Ingress appIngress,
-        IngressTLS tls
+    private Mono<AuthzResponse> processAuthorization(String issuerId, URI authzUri, AuthzResponse auth,
+        Ingress appIngress
     ) {
         final Challenge httpChallenge = auth.challenges().stream()
             .filter(challenge -> challenge.type().equals(Challenge.TYPE_HTTP_01))
