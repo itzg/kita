@@ -2,10 +2,10 @@
 apiVersion: skaffold/v2beta27
 kind: Config
 metadata:
-  name: ingress-tls-acme-dev
+  name: kita-dev
 build:
   artifacts:
-  - image: ingress-tls-acme-dev
+  - image: kita-dev
     custom:
       buildCommand: ./gradlew pushSimpleBootImage
       dependencies:
@@ -21,7 +21,7 @@ profiles:
 - name: windows
   build:
     artifacts:
-      - image: ingress-tls-acme-dev
+      - image: kita-dev
         custom:
           # override this since Windows needs backslash'y paths
           buildCommand: .\gradlew pushSimpleBootImage

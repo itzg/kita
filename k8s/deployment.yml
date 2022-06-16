@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ingress-tls-acme-dev
+  name: kita-dev
   labels:
-    app: ingress-tls-acme-dev
+    app: kita-dev
 spec:
   replicas: 1
   template:
     metadata:
-      name: ingress-tls-acme-dev
+      name: kita-dev
       labels:
-        app: ingress-tls-acme-dev
+        app: kita-dev
     spec:
-      serviceAccountName: ingress-tls-acme-dev
+      serviceAccountName: kita-dev
       containers:
         - name: app
-          image: ingress-tls-acme-dev
+          image: kita-dev
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -32,7 +32,7 @@ spec:
           configMap:
             # Must be created manually on the target cluster
             # with an application.properties or application.yml entry
-            name: ingress-tls-acme-dev
+            name: kita-dev
   selector:
     matchLabels:
-      app: ingress-tls-acme-dev
+      app: kita-dev

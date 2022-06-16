@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: ingress-tls-acme-dev
+  name: kita-dev
   labels:
-    app: ingress-tls-acme-dev
+    app: kita-dev
     acme.itzg.github.io/role: solver
 spec:
   selector:
-    app: ingress-tls-acme-dev
+    app: kita-dev
   ports:
     - port: 8080
       name: http
