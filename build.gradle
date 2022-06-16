@@ -2,9 +2,9 @@ plugins {
     id 'org.springframework.boot' version '2.7.0'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'java'
-    id "io.github.itzg.simple-boot-image" version "0.3.0"
+    id "io.github.itzg.simple-boot-image" version "0.3.1"
     // https://github.com/qoomon/gradle-git-versioning-plugin
-    id 'me.qoomon.git-versioning' version '6.1.2'
+    id 'me.qoomon.git-versioning' version '6.1.4'
 }
 
 group = 'io.github.itzg'
@@ -60,4 +60,5 @@ tasks.named('test') {
 
 simpleBootImage {
     baseImage = 'eclipse-temurin:18'
+//    tags = ["latest", project.version]
 }
