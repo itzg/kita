@@ -3,9 +3,5 @@ kita:
     letsencrypt-staging:
       directory-url: https://acme-staging-v02.api.letsencrypt.org/directory
       emails:
-        - ${email:}
-      terms-of-service-agreed: ${termsOfServiceAgreed:false}
-
-logging:
-  level:
-    app: debug
+        - nobody@example.com
+      terms-of-service-agreed: true

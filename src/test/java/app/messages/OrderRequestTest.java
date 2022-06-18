@@ -2,6 +2,7 @@ package app.messages;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import app.config.AppProperties;
 import app.model.Identifier;
 import java.io.IOException;
 import java.time.Instant;
@@ -11,8 +12,12 @@ import org.skyscreamer.jsonassert.JSONCompareMode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.json.JsonTest;
 import org.springframework.boot.test.json.JacksonTester;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.ComponentScan.Filter;
+import org.springframework.test.context.TestPropertySource;
 
 @JsonTest
+@TestPropertySource("")
 class OrderRequestTest {
 
     @Autowired
