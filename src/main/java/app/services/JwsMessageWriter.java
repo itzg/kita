@@ -14,14 +14,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
 import org.reactivestreams.Publisher;
 import org.springframework.core.ResolvableType;
 import org.springframework.http.MediaType;
 import org.springframework.http.ReactiveHttpOutputMessage;
 import org.springframework.http.codec.HttpMessageWriter;
+import org.springframework.lang.NonNull;
 import reactor.core.publisher.Mono;
 
+/**
+ * Applies a JSON Web Signature and encoding to an outgoing {@link SignableValue}
+ */
 @Slf4j
 public class JwsMessageWriter implements HttpMessageWriter<SignableValue> {
 
@@ -41,7 +44,7 @@ public class JwsMessageWriter implements HttpMessageWriter<SignableValue> {
         this.objectMapper = objectMapper;
     }
 
-    @NotNull
+    @NonNull
     @Override
     public List<MediaType> getWritableMediaTypes() {
         return List.of(JOSE_JSON);

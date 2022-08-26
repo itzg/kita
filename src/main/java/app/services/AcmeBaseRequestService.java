@@ -4,17 +4,14 @@ import app.model.Problem;
 import app.model.SignableValue;
 import com.nimbusds.jose.jwk.RSAKey;
 import java.net.URI;
-import java.security.cert.X509Certificate;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClient.ResponseSpec;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Service
@@ -39,7 +36,7 @@ public class AcmeBaseRequestService {
     ) {
         log.debug("Creating POST for issuerId={} to url={} payload={}", issuerId, requestUrl, payload);
 
-        return preEntityRequest(issuerId, jwk, kid, requestUrl, payload, responseClass)
+        return preEntityRequest(issuerId, jwk, kid, requestUrl, payload)
             .toEntity(responseClass)
             .doOnNext(directoryService.latchNonce(issuerId))
             .doOnNext(entity -> log.debug("Response status={} from url={} for issuerId={} body={}",
@@ -47,10 +44,8 @@ public class AcmeBaseRequestService {
             ));
     }
 
-    @NotNull
-    private <T> ResponseSpec preEntityRequest(String issuerId, RSAKey jwk, String kid, URI requestUrl, Object payload,
-        Class<T> responseClass
-    ) {
+    @NonNull
+    private ResponseSpec preEntityRequest(String issuerId, RSAKey jwk, String kid, URI requestUrl, Object payload) {
         return webClient.post()
             .uri(requestUrl)
             .contentType(JwsMessageWriter.JOSE_JSON)
