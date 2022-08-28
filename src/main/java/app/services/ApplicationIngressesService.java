@@ -193,7 +193,7 @@ public class ApplicationIngressesService implements Closeable {
                     log.info("Cert creation complete for tls entry with secret={} hosts={} in ingress={}",
                         secret.getMetadata().getName(), tls.getHosts(), ingressName
                     ),
-                throwable -> log.warn("Problem while processing cert creation"),
+                throwable -> log.warn("Problem while processing cert creation", throwable),
                 () -> activeReconciles.remove(ingressName)
             );
     }
