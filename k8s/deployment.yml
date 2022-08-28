@@ -22,6 +22,8 @@ spec:
           env:
             - name: LOGGING_LEVEL_APP
               value: DEBUG
+            - name: KITA_SOLVER_ROLE
+              value: solver-dev
           volumeMounts:
             - mountPath: /application/config
               name: configs

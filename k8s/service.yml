@@ -4,7 +4,7 @@ metadata:
   name: kita-dev
   labels:
     app: kita-dev
-    acme.itzg.github.io/role: solver
+    acme.itzg.github.io/role: solver-dev
 spec:
   selector:
     app: kita-dev

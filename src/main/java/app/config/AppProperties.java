@@ -4,11 +4,11 @@ import java.time.Duration;
 import java.util.Map;
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
+import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
-import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
 
 @ConfigurationProperties("kita")
@@ -27,7 +27,14 @@ public record AppProperties(
     long maxAuthFinalizeAttempts,
 
     @DefaultValue("2s") @NotNull
-    Duration authFinalizeRetryDelay
+    Duration authFinalizeRetryDelay,
+
+    boolean dryRun,
+
+    @DefaultValue("solver") @NotBlank
+    String solverRole,
+
+    String overrideIssuer
 ) {
 
 }

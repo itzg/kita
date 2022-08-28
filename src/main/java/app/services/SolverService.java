@@ -1,5 +1,6 @@
 package app.services;
 
+import app.config.AppProperties;
 import app.controllers.AcmeChallengeController;
 import app.controllers.AcmeChallengeController.PreparedChallenge;
 import io.fabric8.kubernetes.api.model.LoadBalancerIngress;
@@ -36,22 +37,26 @@ public class SolverService {
 
     private final KubernetesClient k8s;
     private final AcmeChallengeController acmeChallengeController;
+    private final AppProperties appProperties;
 
-    public SolverService(KubernetesClient k8s, AcmeChallengeController acmeChallengeController) {
+    public SolverService(KubernetesClient k8s, AcmeChallengeController acmeChallengeController,
+        AppProperties appProperties
+    ) {
         this.k8s = k8s;
         this.acmeChallengeController = acmeChallengeController;
+        this.appProperties = appProperties;
     }
 
     Mono<io.fabric8.kubernetes.api.model.Service> solverService() {
         final One<io.fabric8.kubernetes.api.model.Service> sink = Sinks.one();
 
         log.debug("Locating solver service resource with label {}={} via watch",
-            Metadata.ROLE_LABEL, Metadata.SOLVER_ROLE
+            Metadata.ROLE_LABEL, appProperties.solverRole()
         );
 
         //noinspection resource closed in mono below
         final Watch watch = k8s.services()
-            .withLabel(Metadata.ROLE_LABEL, Metadata.SOLVER_ROLE)
+            .withLabel(Metadata.ROLE_LABEL, appProperties.solverRole())
             .watch(new Watcher<>() {
 
                 @Override
@@ -88,7 +93,9 @@ public class SolverService {
                 final Ingress ingress = createSolverIngress(issuerId, ingressClassName, ingressName, host, service,
                     preparedChallenge
                 );
-                log.debug("Created ingress={} for solving challenge for host={}. Waiting for ingress to be ready...", ingressName, host);
+                log.debug("Created ingress={} for solving challenge for host={}. Waiting for ingress to be ready...", ingressName,
+                    host
+                );
 
                 return emitWhenIngressReady(ingress)
                     .map(readyIngress -> IngressSetup.builder()
@@ -132,12 +139,12 @@ public class SolverService {
     ) {
         log.debug("Creating solver ingress={} with ingressClass={}", ingressName, ingressClassName);
         return k8s.network().v1().ingresses()
-            .createOrReplace(
+            .resource(
                 new IngressBuilder()
                     .withMetadata(new ObjectMetaBuilder()
                         .withName(ingressName)
                         .withLabels(Map.of(
-                            Metadata.ROLE_LABEL, Metadata.SOLVER_ROLE,
+                            Metadata.ROLE_LABEL, appProperties.solverRole(),
                             Metadata.ISSUER_LABEL, issuerId
                         ))
                         .withAnnotations(Map.of(
@@ -172,7 +179,8 @@ public class SolverService {
                         .build()
                     )
                     .build()
-            );
+            )
+            .createOrReplace();
     }
 
     private ServiceBackendPort portForIngressFromService(io.fabric8.kubernetes.api.model.Service service) {
@@ -214,7 +222,8 @@ public class SolverService {
     public void removeSolverIngress(Ingress ingress, String token) {
         log.debug("Deleting solver ingress named={}", ingress.getMetadata().getName());
         k8s.network().v1().ingresses()
-            .delete(ingress);
+            .resource(ingress)
+            .delete();
         acmeChallengeController.removeChallenge(token);
     }
 
