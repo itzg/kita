@@ -14,7 +14,6 @@ import org.springframework.validation.annotation.Validated;
 /**
  * @param issuers                  one or more ACME issuers/providers, such as LetsEncrypt
  * @param responseTimeout          allowed response time when communicating with ACME issuer
- * @param certRenewalCheckInterval
  * @param authFinalize             configuration of the client polling after challenge observation as described in
  *                                 <a href="https://datatracker.ietf.org/doc/html/rfc8555#section-7.5.1">RFC 8555 Sec 7.5.1</a>
  * @param dryRun                   check for missing or expiring TLS secrets, but don't perform any issuing process
@@ -31,9 +30,6 @@ public record AppProperties(
 
     @DefaultValue("10s") @NotNull
     Duration responseTimeout,
-
-    @DefaultValue("6h") @NotNull
-    Duration certRenewalCheckInterval,
 
     @DefaultValue
     AuthFinalize authFinalize,

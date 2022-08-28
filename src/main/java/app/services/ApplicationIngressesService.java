@@ -26,29 +26,37 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.springframework.lang.NonNull;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Service
 @Slf4j
 public class ApplicationIngressesService implements Closeable {
 
     private final KubernetesClient k8s;
+    private final TaskScheduler taskScheduler;
     private final CertificateProcessingService certificateProcessingService;
     private final AppProperties appProperties;
     private final Watch ingressWatches;
     private final Watch tlsSecretWatches;
-    private final Set<String/*ingress name*/> activeReconciles = Collections.synchronizedSet(new HashSet<>());
+    private final Set<String/*ingress name*/> activeIngressReconciles = Collections.synchronizedSet(new HashSet<>());
+    private final Map<String/*secretName*/, ScheduledFuture<?>> scheduledRenewals = new ConcurrentHashMap<>();
 
     public ApplicationIngressesService(KubernetesClient k8s,
+        TaskScheduler taskScheduler,
         CertificateProcessingService certificateProcessingService,
         AppProperties appProperties
     ) {
         this.k8s = k8s;
+        this.taskScheduler = taskScheduler;
         this.certificateProcessingService = certificateProcessingService;
         this.appProperties = appProperties;
 
@@ -59,11 +67,21 @@ public class ApplicationIngressesService implements Closeable {
     private Watch setupIngressWatch() {
         return k8s.network().v1().ingresses()
             .withLabel(Metadata.ISSUER_LABEL)
+            // ...but not solver ingress that we created temporarily
+            .withLabelNotIn(Metadata.ROLE_LABEL, appProperties.solverRole())
             .watch(new Watcher<>() {
                 @Override
                 public void eventReceived(Action action, Ingress ingress) {
+                    final String ingressName = ingress.getMetadata().getName();
+                    log.debug("Observed event for ingress {}: {}", ingressName, action);
+
                     switch (action) {
-                        case ADDED, MODIFIED -> reconcileIngressTls(ingress);
+                        case ADDED, MODIFIED -> reconcileIngress(ingress)
+                            .subscribe(secret -> {
+                            }, throwable ->
+                                log.error("Issue while reconciling ingress={}", ingressName)
+                            )
+                        ;
                     }
                 }
 
@@ -80,8 +98,26 @@ public class ApplicationIngressesService implements Closeable {
             .watch(new Watcher<>() {
                 @Override
                 public void eventReceived(Action action, Secret resource) {
-                    if (action == Action.DELETED) {
-                        checkCertRenewals();
+                    final String secretName = resource.getMetadata().getName();
+                    log.debug("Observed event for secret {}: {}", secretName, action);
+
+                    switch (action) {
+                        case DELETED -> {
+                            scheduledRenewals.remove(secretName);
+                            checkCertRenewalsForSecret(secretName);
+                        }
+                        case ADDED, MODIFIED -> {
+                            // NOTE: this will also take of scheduling renewal of
+                            // TLS secrets we create/update
+
+                            if (needsRenewal(resource)) {
+                                // Would seem weird to get here if it's a new TLS secret;
+                                // however, maybe a secret was created externally with
+                                // an old cert.
+
+                                checkCertRenewalsForSecret(secretName);
+                            }
+                        }
                     }
                 }
 
@@ -92,57 +128,71 @@ public class ApplicationIngressesService implements Closeable {
             });
     }
 
-    @Scheduled(
-        // initial ingress listing will handle reconciling at startup, so delay for given interval
-        initialDelayString = "#{@'kita-app.config.AppProperties'.certRenewalCheckInterval}",
-        fixedDelayString = "#{@'kita-app.config.AppProperties'.certRenewalCheckInterval}"
-    )
-    public void checkCertRenewals() {
+    public void checkCertRenewalsForSecret(@NonNull String secretName) {
         final IngressList ingresses = k8s.network().v1().ingresses()
             .withLabel(Metadata.ISSUER_LABEL)
             .list();
 
-        for (final Ingress ingress : ingresses.getItems()) {
-            reconcileIngressTls(ingress);
-        }
+        Flux.fromStream(ingresses.getItems().stream()
+                .filter(ingress -> ingress.getSpec().getTls().stream()
+                    .anyMatch(ingressTLS -> Objects.equals(ingressTLS.getSecretName(), secretName)))
+            )
+            .flatMap(this::reconcileIngress)
+            .subscribe(secret -> {
+                }, throwable ->
+                    log.error("Failed to process cert renewals for secret={}", secretName, throwable)
+            );
+
     }
 
-    private void reconcileIngressTls(Ingress ingress) {
+    private Flux<Secret> reconcileIngress(Ingress ingress) {
         final String name = ingress.getMetadata().getName();
-        if (!activeReconciles.add(name)) {
+        if (!activeIngressReconciles.add(name)) {
             // already being reconciled
-            return;
+            return Flux.empty();
         }
 
-        log.debug("Reconciling ingress={}", name);
-        for (final IngressTLS tls : ingress.getSpec().getTls()) {
+        return Flux.fromIterable(ingress.getSpec().getTls())
+            .flatMap(tls -> processTlsSecret(ingress, tls))
+            .doFinally(signalType -> {
+                log.debug("Removing ingress={} from activeReconciles", name);
+                activeIngressReconciles.remove(name);
+            });
+    }
 
-            final Secret tlsSecret = k8s.secrets()
-                .withName(tls.getSecretName())
-                .get();
+    private Mono<Secret> processTlsSecret(Ingress ingress, IngressTLS tls) {
+        final Secret tlsSecret = k8s.secrets()
+            .withName(tls.getSecretName())
+            .get();
 
-            final String requestedIssuerId =
-                appProperties.overrideIssuer() != null ?
-                    appProperties.overrideIssuer()
-                    : ingress.getMetadata().getLabels().get(Metadata.ISSUER_LABEL);
+        final String requestedIssuerId =
+            appProperties.overrideIssuer() != null ?
+                appProperties.overrideIssuer()
+                : ingress.getMetadata().getLabels().get(Metadata.ISSUER_LABEL);
 
-            if (tlsSecret == null) {
-                initiateCertCreation(ingress, tls, requestedIssuerId);
+        if (tlsSecret == null) {
+            return initiateCertCreation(ingress, tls, requestedIssuerId);
+        } else {
+            final String tlsSecretIssuer = nullSafe(tlsSecret.getMetadata().getLabels()).get(Metadata.ISSUER_LABEL);
+            if (!Objects.equals(tlsSecretIssuer, requestedIssuerId)
+                || needsRenewal(tlsSecret)) {
+                return initiateCertCreation(ingress, tls, requestedIssuerId);
             } else {
-                final String tlsSecretIssuer = nullSafe(tlsSecret.getMetadata().getLabels()).get(Metadata.ISSUER_LABEL);
-                if (!Objects.equals(tlsSecretIssuer, requestedIssuerId)
-                    || needsRenewal(tlsSecret)) {
-                    initiateCertCreation(ingress, tls, requestedIssuerId);
-                } else {
-                    activeReconciles.remove(name);
-                }
+                return Mono.empty();
             }
         }
-
     }
 
+    /**
+     * NOTE: if the secret is not due yet for renewal, a task will be scheduled to try at recommended renewal time.
+     *
+     * @param tlsSecret the TLS secret to check
+     * @return true if due for renewal and cert creation should be initiated, false if not and a task was scheduled by this method
+     */
     private boolean needsRenewal(Secret tlsSecret) {
         final String certContentEncoded = tlsSecret.getData().get("tls.crt");
+        final String secretName = tlsSecret.getMetadata().getName();
+
         if (certContentEncoded != null) {
             final Decoder decoder = Base64.getDecoder();
 
@@ -160,13 +210,17 @@ public class ApplicationIngressesService implements Closeable {
                     // since it sets expiration just before and between's argument is exclusive
                     notAfter.plusSeconds(1)
                 );
+
                 // LetsEncrypt recommends renewing when there is a 3rd of lifetime left
                 // https://letsencrypt.org/docs/integration-guide/#when-to-renew
-                if (Instant.now().isAfter(notAfter.minus(lifetime.dividedBy(3)))) {
+                final Instant dueForRenewal = notAfter.minus(lifetime.dividedBy(3));
+                if (Instant.now().isAfter(dueForRenewal)) {
                     log.info("TLS secret {} is due to be renewed since its lifetime is {} days and expires at {}",
-                        tlsSecret.getMetadata().getName(), lifetime.toDays(), notAfter
+                        secretName, lifetime.toDays(), notAfter
                     );
                     return true;
+                } else {
+                    scheduleRenewal(secretName, dueForRenewal);
                 }
             } catch (IOException e) {
                 log.error("Failed to read/close PEM reader", e);
@@ -174,27 +228,42 @@ public class ApplicationIngressesService implements Closeable {
                 log.error("Failed to get X.509 cert factory", e);
             }
         } else {
-            log.error("TLS secret {} is missing tls.crt data", tlsSecret.getMetadata().getName());
+            log.error("TLS secret {} is missing tls.crt data", secretName);
         }
         return false;
     }
 
-    private void initiateCertCreation(Ingress ingress, IngressTLS tls, String requestedIssuerId) {
+    private void scheduleRenewal(String secretName, Instant dueForRenewal) {
+        scheduledRenewals.compute(secretName, (name, oldScheduled) -> {
+            if (oldScheduled != null) {
+                oldScheduled.cancel(false);
+            }
+            log.info("Scheduling renewal of TLS secret {} at {}", secretName, dueForRenewal);
+            return taskScheduler.schedule(() ->
+                    checkCertRenewalsForSecret(secretName),
+                dueForRenewal.plusSeconds(1)
+            );
+        });
+    }
+
+    private Mono<Secret> initiateCertCreation(Ingress ingress, IngressTLS tls, String requestedIssuerId) {
         final String ingressName = ingress.getMetadata().getName();
         if (appProperties.dryRun()) {
             log.info("Skipping cert creation of {} for ingress {} since dry-run is enabled",
                 tls.getSecretName(), ingressName
             );
-            return;
+            return Mono.empty();
         }
 
-        certificateProcessingService.initiateCertCreation(ingress, tls, requestedIssuerId)
-            .subscribe(secret ->
-                    log.info("Cert creation complete for tls entry with secret={} hosts={} in ingress={}",
-                        secret.getMetadata().getName(), tls.getHosts(), ingressName
-                    ),
-                throwable -> log.warn("Problem while processing cert creation", throwable),
-                () -> activeReconciles.remove(ingressName)
+        return certificateProcessingService.initiateCertCreation(ingress, tls, requestedIssuerId)
+            .doOnSuccess(secret ->
+                log.info("Cert creation complete for tls entry with secret={} hosts={} in ingress={}",
+                    secret.getMetadata().getName(), tls.getHosts(), ingressName
+                ))
+            .doOnError(throwable ->
+                log.warn("Problem while processing cert creation for ingress={} with tlsSecret={}",
+                    ingressName, tls.getSecretName(), throwable
+                )
             );
     }
 

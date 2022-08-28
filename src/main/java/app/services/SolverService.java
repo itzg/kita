@@ -215,8 +215,14 @@ public class SolverService {
     }
 
     private String buildIngressName(String serviceName, String host) {
-        return serviceName + "-solver-" +
-            host.replace('.', '-').toLowerCase();
+        return limitValidK8sName(
+            serviceName + "-solver-" +
+                host.replaceAll("[^A-Za-z0-9]+", "-").toLowerCase()
+        );
+    }
+
+    private static String limitValidK8sName(String s) {
+        return s.length() > 253 ? s.substring(0, 253) : s;
     }
 
     public void removeSolverIngress(Ingress ingress, String token) {
