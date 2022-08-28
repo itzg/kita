@@ -2,36 +2,29 @@ package app.services;
 
 import app.config.Issuer;
 import app.messages.AccountRequest;
-import app.model.AcmeAccount;
 import app.messages.AccountResponse;
+import app.model.AcmeAccount;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
-import java.util.Base64.Encoder;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 @Service
 @Slf4j
 public class AcmeAccountService {
 
-    private AcmeBaseRequestService baseRequestService;
+    private final AcmeBaseRequestService baseRequestService;
     private final AcmeDirectoryService directoryService;
-    private final Map<String, AcmeAccount> accounts = Collections.synchronizedMap(new HashMap<>());
+    private final Map<String, Mono<AcmeAccount>> accounts = new ConcurrentHashMap<>();
 
     public AcmeAccountService(
         AcmeDirectoryService directoryService,
@@ -54,22 +47,17 @@ public class AcmeAccountService {
     }
 
     public Mono<AcmeAccount> accountForIssuer(String issuerId) {
-        synchronized (accounts) {
-            final AcmeAccount acmeAccount = accounts.get(issuerId);
-            if (acmeAccount != null) {
-                return Mono.just(acmeAccount);
-            }
+        return accounts.computeIfAbsent(issuerId, key -> {
+            final Issuer issuer = directoryService.issuerFor(key);
 
-            log.debug("Retrieving account for issuerId={}", issuerId);
-
-            final Issuer issuer = directoryService.issuerFor(issuerId);
-
-            return retrieveAccount(issuerId, issuer)
-                .doOnNext(account -> accounts.put(issuerId, account));
-        }
+            return retrieveAccount(key, issuer)
+                .cache();
+        });
     }
 
     private Mono<AcmeAccount> retrieveAccount(String issuerId, Issuer issuer) {
+        log.debug("Retrieving account for issuerId={}", issuerId);
+
         final RSAKey jwk = generateJwk();
 
         final URI newAccountUrl = directoryService.directoryFor(issuerId).newAccount();

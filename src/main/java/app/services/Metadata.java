@@ -4,7 +4,6 @@ public class Metadata {
     public static final String NAMESPACE = "acme.itzg.github.io";
 
     public static final String ROLE_LABEL = NAMESPACE + "/role";
-    public static final String SOLVER_ROLE = "solver";
 
     public static final String HOST_ANNOTATION = NAMESPACE + "/host";
 

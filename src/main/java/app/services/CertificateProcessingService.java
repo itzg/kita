@@ -143,7 +143,8 @@ public class CertificateProcessingService {
         log.debug("Stored secret={}", secret.getMetadata().getName());
 
         return k8s.secrets()
-            .createOrReplace(secret);
+            .resource(secret)
+            .createOrReplace();
     }
 
     private CertAndKey buildCertAndKey(String certChain, PrivateKey privateKey) {
