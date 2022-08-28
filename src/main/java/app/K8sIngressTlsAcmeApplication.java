@@ -9,7 +9,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 @EnableScheduling
 @ConfigurationPropertiesScan
-//@EnableConfigurationProperties(AppProperties.class)
 public class K8sIngressTlsAcmeApplication {
 
     public static void main(String[] args) {

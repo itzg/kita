@@ -303,8 +303,11 @@ public class CertificateProcessingService {
                     return Mono.just(resp);
                 }
             })
-            .retryWhen(Retry.fixedDelay(appProperties.maxAuthFinalizeAttempts(), appProperties.authFinalizeRetryDelay())
-                .filter(AuthNotFinalized.class::isInstance)
+            .retryWhen(Retry.fixedDelay(
+                        appProperties.authFinalize().maxAttempts(),
+                        appProperties.authFinalize().pollDelay()
+                    )
+                    .filter(AuthNotFinalized.class::isInstance)
             );
     }
 
