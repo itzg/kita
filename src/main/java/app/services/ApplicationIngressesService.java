@@ -87,7 +87,7 @@ public class ApplicationIngressesService implements Closeable {
 
                 @Override
                 public void onClose(WatcherException cause) {
-
+                    log.warn("Ingress watch has closed", cause);
                 }
             });
     }
@@ -123,7 +123,7 @@ public class ApplicationIngressesService implements Closeable {
 
                 @Override
                 public void onClose(WatcherException cause) {
-
+                    log.warn("TLS secrets watch closed", cause);
                 }
             });
     }
@@ -155,7 +155,7 @@ public class ApplicationIngressesService implements Closeable {
         return Flux.fromIterable(ingress.getSpec().getTls())
             .flatMap(tls -> processTlsSecret(ingress, tls))
             .doFinally(signalType -> {
-                log.debug("Removing ingress={} from activeReconciles", name);
+                log.debug("Finished reconciling ingress={}", name);
                 activeIngressReconciles.remove(name);
             });
     }
