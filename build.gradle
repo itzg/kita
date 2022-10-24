@@ -4,7 +4,7 @@ plugins {
     id 'java'
     id 'io.github.itzg.simple-boot-image' version '0.5.1'
     // https://github.com/qoomon/gradle-git-versioning-plugin
-    id 'me.qoomon.git-versioning' version '6.3.2'
+    id 'me.qoomon.git-versioning' version '6.3.3'
 }
 
 group = 'io.github.itzg'
