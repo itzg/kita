@@ -45,10 +45,10 @@ public class ApplicationIngressesService implements Closeable {
     private final TaskScheduler taskScheduler;
     private final CertificateProcessingService certificateProcessingService;
     private final AppProperties appProperties;
-    private final Watch ingressWatches;
-    private final Watch tlsSecretWatches;
     private final Set<String/*ingress name*/> activeIngressReconciles = Collections.synchronizedSet(new HashSet<>());
     private final Map<String/*secretName*/, ScheduledFuture<?>> scheduledRenewals = new ConcurrentHashMap<>();
+    private Watch ingressWatches;
+    private Watch tlsSecretWatches;
 
     public ApplicationIngressesService(KubernetesClient k8s,
         TaskScheduler taskScheduler,
@@ -65,6 +65,7 @@ public class ApplicationIngressesService implements Closeable {
     }
 
     private Watch setupIngressWatch() {
+        log.debug("Setting up ingress watch");
         return k8s.network().v1().ingresses()
             .withLabel(Metadata.ISSUER_LABEL)
             // ...but not solver ingress that we created temporarily
@@ -87,12 +88,14 @@ public class ApplicationIngressesService implements Closeable {
 
                 @Override
                 public void onClose(WatcherException cause) {
-                    log.warn("Ingress watch has closed", cause);
+                    log.debug("Ingress watch has closed", cause);
+                    ingressWatches = setupIngressWatch();
                 }
             });
     }
 
     private Watch setupTlsSecretWatch() {
+        log.debug("Setting up TLS secret watch");
         return k8s.secrets()
             .withLabel(Metadata.ISSUER_LABEL)
             .watch(new Watcher<>() {
@@ -123,7 +126,8 @@ public class ApplicationIngressesService implements Closeable {
 
                 @Override
                 public void onClose(WatcherException cause) {
-                    log.warn("TLS secrets watch closed", cause);
+                    log.debug("TLS secrets watch closed", cause);
+                    tlsSecretWatches = setupTlsSecretWatch();
                 }
             });
     }

@@ -5,7 +5,7 @@ import app.model.SignableValue;
 import com.nimbusds.jose.jwk.RSAKey;
 import java.net.URI;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
@@ -61,7 +61,7 @@ public class AcmeBaseRequestService {
                     ), SignableValue.class
             )
             .retrieve()
-            .onStatus(HttpStatus::isError, clientResponse ->
+            .onStatus(HttpStatusCode::isError, clientResponse ->
                 clientResponse.bodyToMono(Problem.class)
                     .flatMap(problem -> clientResponse.createException()
                         .map(e -> new AcmeProblemException(problem, e))
