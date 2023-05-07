@@ -3,33 +3,24 @@ package app.services;
 import app.config.AppProperties;
 import app.controllers.AcmeChallengeController;
 import app.controllers.AcmeChallengeController.PreparedChallenge;
-import io.fabric8.kubernetes.api.model.LoadBalancerIngress;
 import io.fabric8.kubernetes.api.model.ObjectMetaBuilder;
 import io.fabric8.kubernetes.api.model.ServicePort;
-import io.fabric8.kubernetes.api.model.networking.v1.HTTPIngressPathBuilder;
-import io.fabric8.kubernetes.api.model.networking.v1.HTTPIngressRuleValueBuilder;
-import io.fabric8.kubernetes.api.model.networking.v1.Ingress;
-import io.fabric8.kubernetes.api.model.networking.v1.IngressBackendBuilder;
-import io.fabric8.kubernetes.api.model.networking.v1.IngressBuilder;
-import io.fabric8.kubernetes.api.model.networking.v1.IngressRuleBuilder;
-import io.fabric8.kubernetes.api.model.networking.v1.IngressServiceBackendBuilder;
-import io.fabric8.kubernetes.api.model.networking.v1.IngressSpecBuilder;
-import io.fabric8.kubernetes.api.model.networking.v1.ServiceBackendPort;
-import io.fabric8.kubernetes.api.model.networking.v1.ServiceBackendPortBuilder;
+import io.fabric8.kubernetes.api.model.networking.v1.*;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.client.WatcherException;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 import reactor.core.publisher.Sinks.One;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @Slf4j
@@ -114,7 +105,7 @@ public class SolverService {
             .watch(new Watcher<>() {
                 @Override
                 public void eventReceived(Action action, Ingress resource) {
-                    final List<LoadBalancerIngress> lbIngresses = resource.getStatus().getLoadBalancer().getIngress();
+                    final List<IngressLoadBalancerIngress> lbIngresses = resource.getStatus().getLoadBalancer().getIngress();
                     log.trace("Event on ingress is action={} lbIngresses={}", action, lbIngresses);
                     if (lbIngresses != null && !lbIngresses.isEmpty()) {
                         log.debug("Solver ingress={} is ready", resource.getMetadata().getName());
@@ -179,8 +170,7 @@ public class SolverService {
                         .build()
                     )
                     .build()
-            )
-            .createOrReplace();
+            ).serverSideApply();
     }
 
     private ServiceBackendPort portForIngressFromService(io.fabric8.kubernetes.api.model.Service service) {
