@@ -44,7 +44,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'io.fabric8:kubernetes-client:6.7.1'
     implementation 'com.nimbusds:nimbus-jose-jwt:9.31'
-    implementation 'org.bouncycastle:bcpkix-jdk18on:1.73'
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.74'
 
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
