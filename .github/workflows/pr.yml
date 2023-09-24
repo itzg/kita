@@ -7,21 +7,8 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Java JDK
-        uses: actions/setup-java@v3
-        with:
-          java-version: '18'
-          distribution: 'temurin'
-
-      - name: Gradle build
-        uses: gradle/gradle-build-action@v2
-        with:
-          arguments: |
-            build
+    uses: itzg/github-workflows/.github/workflows/gradle-build.yml@main
+    with:
+      arguments: test
+      include-test-report: true
+      java-version: "18"
