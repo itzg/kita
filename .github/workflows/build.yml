@@ -14,5 +14,5 @@ jobs:
     with:
       image-repo: "ghcr.io/itzg"
       image-platforms: "linux/amd64"
-      java-version: "18"
+      java-version: "21"
       extra-gradle-tasks: test
