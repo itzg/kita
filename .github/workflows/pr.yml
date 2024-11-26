@@ -11,4 +11,4 @@ jobs:
     with:
       arguments: test
       include-test-report: true
-      java-version: "18"
+      java-version: "21"
