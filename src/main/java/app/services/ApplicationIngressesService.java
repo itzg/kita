@@ -9,6 +9,15 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.Watch;
 import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.client.WatcherException;
+import lombok.extern.slf4j.Slf4j;
+import org.bouncycastle.util.io.pem.PemObject;
+import org.bouncycastle.util.io.pem.PemReader;
+import org.springframework.lang.NonNull;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
@@ -19,23 +28,10 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
+import java.util.*;
 import java.util.Base64.Decoder;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
-import lombok.extern.slf4j.Slf4j;
-import org.bouncycastle.util.io.pem.PemObject;
-import org.bouncycastle.util.io.pem.PemReader;
-import org.springframework.lang.NonNull;
-import org.springframework.scheduling.TaskScheduler;
-import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 @Service
 @Slf4j
@@ -142,9 +138,16 @@ public class ApplicationIngressesService implements Closeable {
                     .anyMatch(ingressTLS -> Objects.equals(ingressTLS.getSecretName(), secretName)))
             )
             .flatMap(this::reconcileIngress)
+            .switchIfEmpty(Mono.error(MissingResourceException::new))
             .subscribe(secret -> {
-                }, throwable ->
-                    log.error("Failed to process cert renewals for secret={}", secretName, throwable)
+                }, throwable -> {
+                    if (throwable instanceof MissingResourceException) {
+                        log.warn("No ingress(es) found using secret: {}", secretName);
+                    }
+                    else {
+                        log.error("Failed to process cert renewals for secret={}", secretName, throwable);
+                    }
+                }
             );
 
     }
